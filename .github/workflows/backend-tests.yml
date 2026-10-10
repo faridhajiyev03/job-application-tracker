@@ -1,0 +1,40 @@
+name: Backend Tests
+
+on:
+  push:
+    branches:
+      - main
+      - test/backend-foundation
+  pull_request:
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Install PostgreSQL tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql postgresql-client
+          echo "$(pg_config --bindir)" >> "$GITHUB_PATH"
+
+      - name: Install test dependencies
+        run: python -m pip install -r requirements-test.txt
+
+      - name: Run backend tests
+        run: |
+          mkdir -p /tmp/jat-ci
+          cp -a "$GITHUB_WORKSPACE/." /tmp/jat-ci/
+          cd /tmp/jat-ci
+          python -m pytest --run-db -v -x -ra
