@@ -26,29 +26,45 @@ os.environ["PYTHON_DOTENV_DISABLED"] = "1"
 
 
 def pytest_addoption(parser):
-    parser.addoption("--run-db", action="store_true", help="Start a new disposable local PostgreSQL cluster")
+    parser.addoption("--run-db", action="store_true",
+                     help="Start a new disposable local PostgreSQL cluster")
 
 
 def pytest_collection_modifyitems(config, items):
     if not config.getoption("--run-db"):
         for item in items:
             if "db" in item.keywords:
-                item.add_marker(pytest.mark.skip(reason="Use --run-db for disposable PostgreSQL tests"))
+                item.add_marker(pytest.mark.skip(
+                    reason="Use --run-db for disposable PostgreSQL tests"))
 
 
 def _run(command, env):
-    result = subprocess.run(command, env=env, capture_output=True, text=True, timeout=60)
+    result = subprocess.run(
+        command, env=env, capture_output=True, text=True, timeout=60)
     if result.returncode:
-        pytest.fail(f"Disposable PostgreSQL command failed: {command[0]}\n{result.stdout}\n{result.stderr}")
+        pytest.fail(
+            f"Disposable PostgreSQL command failed: {command[0]}\n{result.stdout}\n{result.stderr}")
     return result
+
+
+def _stop_postgres_and_cleanup(pg_ctl, data, directory, env):
+    """Remove cluster files only after PostgreSQL stops successfully."""
+    _run(
+        [pg_ctl, "-D", str(data), "-m", "immediate", "-w", "stop"],
+        env,
+    )
+    shutil.rmtree(directory)
 
 
 @pytest.fixture(scope="session")
 def app_modules():
-    required = ("fastapi", "sqlalchemy", "psycopg", "httpx", "jwt", "dotenv", "pwdlib", "email_validator")
-    missing = [name for name in required if importlib.util.find_spec(name) is None]
+    required = ("fastapi", "sqlalchemy", "psycopg", "httpx",
+                "jwt", "dotenv", "pwdlib", "email_validator")
+    missing = [
+        name for name in required if importlib.util.find_spec(name) is None]
     if missing:
-        pytest.skip("Missing test dependencies (not installed automatically): " + ", ".join(missing))
+        pytest.skip(
+            "Missing test dependencies (not installed automatically): " + ", ".join(missing))
     if any(name in sys.modules for name in ("database", "security", "main")):
         pytest.fail("Application was imported before the test safety boundary")
 
@@ -60,7 +76,8 @@ def app_modules():
         original_create_engine = sqlalchemy.create_engine
 
         def blocked_connection():
-            raise RuntimeError("The default application engine is forbidden in tests")
+            raise RuntimeError(
+                "The default application engine is forbidden in tests")
 
         def blocked_engine(*args, **kwargs):
             return original_create_engine(os.environ["DATABASE_URL"], creator=blocked_connection)
@@ -78,7 +95,8 @@ def app_modules():
 def postgres_cluster(app_modules):
     binaries = {name: shutil.which(name) for name in ("initdb", "pg_ctl")}
     if not all(binaries.values()):
-        pytest.skip("initdb and pg_ctl are required; no existing database will be used")
+        pytest.skip(
+            "initdb and pg_ctl are required; no existing database will be used")
     root = Path(__file__).resolve().parent / ".runtime"
     root.mkdir(exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix="pg-", dir=root))
@@ -86,23 +104,31 @@ def postgres_cluster(app_modules):
     socket.mkdir(mode=0o700)
     if len(str(socket).encode()) > 85:
         shutil.rmtree(directory)
-        pytest.skip("Repository path is too long for a private PostgreSQL Unix socket")
+        pytest.skip(
+            "Repository path is too long for a private PostgreSQL Unix socket")
     with isolated_postgres_environment(directory):
-        env = {key: value for key, value in os.environ.items() if key != "DATABASE_URL"}
+        env = {key: value for key, value in os.environ.items() if key !=
+               "DATABASE_URL"}
         started = False
         try:
-            _run([binaries["initdb"], "-D", str(data), "-U", "jat_test", "--auth=trust", "--no-locale", "--encoding=UTF8"], env)
+            _run([binaries["initdb"], "-D", str(data), "-U", "jat_test",
+                 "--auth=trust", "--no-locale", "--encoding=UTF8"], env)
             with (data / "postgresql.conf").open("a") as config:
                 escaped_socket = str(socket).replace("'", "''")
-                config.write(f"\nport = {TEST_POSTGRES_PORT}\nlisten_addresses = ''\nunix_socket_directories = '{escaped_socket}'\nunix_socket_permissions = 0700\n")
-            _run([binaries["pg_ctl"], "-D", str(data), "-l", str(directory / "postgres.log"), "-w", "start"], env)
+                config.write(
+                    f"\nport = {TEST_POSTGRES_PORT}\nlisten_addresses = ''\nunix_socket_directories = '{escaped_socket}'\nunix_socket_permissions = 0700\n")
+            _run([binaries["pg_ctl"], "-D", str(data), "-l",
+                 str(directory / "postgres.log"), "-w", "start"], env)
             started = True
             yield socket
         finally:
             # Stop only our freshly initialized cluster, never a system service.
             if started or (data / "postmaster.pid").exists():
-                _run([binaries["pg_ctl"], "-D", str(data), "-m", "immediate", "-w", "stop"], env)
-            shutil.rmtree(directory)
+                _stop_postgres_and_cleanup(
+                    binaries["pg_ctl"], data, directory, env
+                )
+            else:
+                shutil.rmtree(directory)
 
 
 @pytest.fixture
@@ -117,9 +143,11 @@ def database_factory(postgres_cluster, app_modules):
     def fresh_database():
         name = "test_" + uuid4().hex
         with psycopg.connect(**local_connection_parameters(postgres_cluster, "postgres"), autocommit=True) as admin:
-            admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+            admin.execute(sql.SQL("CREATE DATABASE {}").format(
+                sql.Identifier(name)))
         engine = create_engine(
-            URL.create("postgresql+psycopg", username="jat_test", database=name),
+            URL.create("postgresql+psycopg",
+                       username="jat_test", database=name),
             connect_args=local_connection_parameters(postgres_cluster, name),
         )
         try:
@@ -128,7 +156,8 @@ def database_factory(postgres_cluster, app_modules):
         finally:
             engine.dispose()
             with psycopg.connect(**local_connection_parameters(postgres_cluster, "postgres"), autocommit=True) as admin:
-                admin.execute(sql.SQL("DROP DATABASE {}").format(sql.Identifier(name)))
+                admin.execute(sql.SQL("DROP DATABASE {}").format(
+                    sql.Identifier(name)))
 
     return fresh_database
 

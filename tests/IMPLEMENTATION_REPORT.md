@@ -23,6 +23,7 @@ were installed and no database process or connection was started.
 - `tests/IMPLEMENTATION_REPORT.md`: this complete handoff.
 
 The coordinator owns `.task-records/`; these are not implementation edits.
+
 No application code, migrations, existing dependency pins, or unrelated files changed.
 
 ## Inspection and design evidence
@@ -30,6 +31,7 @@ No application code, migrations, existing dependency pins, or unrelated files ch
 Inspected database.py, security.py, main.py, all authentication/application routers,
 services, models and schemas, requirements.txt, and .gitignore. Database and security
 configuration load dotenv at import time; the database engine is created on import.
+
 Services commit and roll back their own synchronous SQLAlchemy sessions. Therefore
 this harness installs configuration before imports, suppresses dotenv, blocks the
 original engine, and uses a real fresh database per test rather than a rollback-only
@@ -46,6 +48,7 @@ the socket directory path is 73 bytes, within the conservative 85-byte bound.
 ## Tests authored
 
 33 cases by source/parameter inspection (not pytest collection):
+
 registration and login on normal and /api routes, public response fields and hash
 verification, duplicate-email protection with original-password preservation,
 invalid registration payloads, unknown email/wrong password, missing and invalid
@@ -63,7 +66,7 @@ and fresh-database isolation through real commits and uniqueness-error rollback.
 - `python3 -m pytest --collect-only -q`: failed before collection, exit 1:
   `No module named pytest`. Zero tests executed, zero runtime passes claimed.
 - `git diff --check`: passed, exit 0.
-- Standard-library `ast.parse` over tests/*.py: passed for all 4 Python files.
+- Standard-library `ast.parse` over tests/\\\*.py: passed for all 4 Python files.
 - Socket-path length probe: 73 bytes.
 
 ## Limitations and risks for independent QA
@@ -85,8 +88,10 @@ and fresh-database isolation through real commits and uniqueness-error rollback.
 ## Fix cycle 1 — F1 ambient libpq defaults (complete; pending QA re-review)
 
 Read the full independent initial review in `.task-records/qa-initial.md`.
+
 F1 correctly identified that subprocess-only sanitization left Python/libpq
 clients exposed to inherited PGHOSTADDR, PGSERVICE and other ambient settings.
+
 No connection was attempted before or during this fix.
 
 Changes in this cycle:
@@ -124,6 +129,7 @@ unverified. No application or migration files changed.
 ## Fix cycle 2 — F2 repository-local temporary artifacts
 
 Read `.task-records/qa-cycle-1.md`; QA resolved F1 and requested only F2.
+
 Changed `tests/test_database_safety.py` to pass
 `dir=Path(__file__).resolve().parent` to `TemporaryDirectory`, ensuring the
 plain documented unittest command creates its temporary configuration files
@@ -136,6 +142,7 @@ Final-state checks:
 - `git diff --check`: PASS, exit 0.
 
 No other implementation changes, dependencies installed, or DB operations.
+
 Two fix cycles used; final independent QA remains to confirm F2. The 33 database
 cases are still unexecuted; pytest collection remains blocked by missing pytest.
 
@@ -160,9 +167,28 @@ The warning concerns deprecated httpx integration with
 starlette.testclient and does not represent a failed test.
 
 Remaining limitations:
+
 - Alembic migration history was not tested.
 - Concurrent requests and race conditions were not tested.
 - Broader input validation and filtering scenarios remain uncovered.
-- Final independent QA review after the F2 correction is pending.
+  Historical verification status: all 34 tests passed at that stage; see the 36-test QA follow-up below.
 
-Final status: all 34 authored tests executed and passed locally.
+## Final QA follow-up — 2026-10-10
+
+- Added `_stop_postgres_and_cleanup()` to make shutdown
+  and cleanup behavior independently testable.
+- Added two regression tests:
+  - Failed PostgreSQL shutdown preserves cluster files.
+  - Successful PostgreSQL shutdown removes cluster files.
+- Full verification: 36 collected, 36 passed, 0 failed,
+  0 skipped, 1 deprecation warning.
+- Command: `python -m pytest --run-db -v -x`
+- Latest repeat run: 36 passed, 1 warning in 8.41 seconds (earlier run: 8.35 seconds).
+- No application code or Alembic migrations changed.
+- PR #1 remains Draft; no merge performed.
+
+Remaining limitations:
+
+- Alembic migration history is not tested.
+- Concurrent requests and race conditions are not tested.
+- Broader filtering and input validation are not covered.
