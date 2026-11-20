@@ -1,16 +1,30 @@
 import os
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jwt.exceptions import InvalidTokenError
-from sqlalchemy.orm import Session
-
-from database import get_db
-from models.user import User
 from datetime import datetime, timedelta, timezone
 
 import jwt
 from dotenv import load_dotenv
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt.exceptions import InvalidTokenError
 from pwdlib import PasswordHash
+from sqlalchemy.orm import Session
+
+from database import get_db
+from models.user import User
+
+
+load_dotenv()
+
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+
+if not JWT_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY is not set")
+
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+
+# Passwords
 
 password_hash = PasswordHash.recommended()
 
@@ -22,15 +36,8 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, hashed_password: str) -> bool:
     return password_hash.verify(password, hashed_password)
 
-load_dotenv()
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-
-if not JWT_SECRET_KEY:
-    raise RuntimeError("JWT_SECRET_KEY is not set")
-
-JWT_ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+# Access tokens
 
 def create_access_token(user_id: int) -> str:
     expires_at = datetime.now(timezone.utc) + timedelta(
@@ -48,13 +55,14 @@ def create_access_token(user_id: int) -> str:
         algorithm=JWT_ALGORITHM,
     )
 
+
+# Current user dependency
+
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(
-        bearer_scheme
-    ),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     auth_error = HTTPException(
@@ -73,9 +81,7 @@ def get_current_user(
             algorithms=[JWT_ALGORITHM],
             options={"require": ["sub", "exp"]},
         )
-
         user_id = int(payload["sub"])
-
     except (InvalidTokenError, ValueError, TypeError):
         raise auth_error
 
