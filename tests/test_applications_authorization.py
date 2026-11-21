@@ -1,6 +1,5 @@
 import pytest
 
-pytestmark = pytest.mark.db
 PAYLOAD = {"company": "Test Company", "position": "Backend Engineer"}
 
 

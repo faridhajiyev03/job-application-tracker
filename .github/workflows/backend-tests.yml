@@ -4,13 +4,30 @@ on:
   push:
     branches:
       - main
-      - test/backend-foundation
   pull_request:
 
 jobs:
   backend-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: jat
+          POSTGRES_PASSWORD: jat
+          POSTGRES_DB: jat_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jat -d jat_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://jat:jat@localhost:5432/jat_test
 
     steps:
       - name: Checkout repository
@@ -23,18 +40,8 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-test.txt
 
-      - name: Install PostgreSQL tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y postgresql postgresql-client
-          echo "$(pg_config --bindir)" >> "$GITHUB_PATH"
-
       - name: Install test dependencies
         run: python -m pip install -r requirements-test.txt
 
       - name: Run backend tests
-        run: |
-          mkdir -p /tmp/jat-ci
-          cp -a "$GITHUB_WORKSPACE/." /tmp/jat-ci/
-          cd /tmp/jat-ci
-          python -m pytest --run-db -v -x -ra
+        run: python -m pytest -v

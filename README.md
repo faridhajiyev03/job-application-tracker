@@ -1,5 +1,7 @@
 # Job Application Tracker
 
+[![Backend Tests](https://github.com/faridhajiyev03/job-application-tracker/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/faridhajiyev03/job-application-tracker/actions/workflows/backend-tests.yml)
+
 A full-stack application for organizing job applications, tracking interview progress, and managing the job search in one place.
 
 Built with React, FastAPI, and PostgreSQL.
@@ -74,6 +76,7 @@ job-application-tracker/
 ├── routers/
 ├── schemas/
 ├── services/
+├── tests/
 ├── docs/
 │   └── screenshots/
 ├── database.py
@@ -157,6 +160,18 @@ npm run dev
 Open http://localhost:5173.
 
 During development, Vite forwards `/api` requests to FastAPI on port `8000`.
+
+## Tests
+
+The backend tests call the API with FastAPI's `TestClient` against a separate PostgreSQL database. They cover authentication, ownership checks, validation, search, filtering, pagination, and the summary.
+
+```bash
+python -m pip install -r requirements-test.txt
+export TEST_DATABASE_URL=postgresql+psycopg://USER:PASSWORD@localhost:5432/job_application_tracker_test
+python -m pytest -v
+```
+
+The database name must end with `_test`. GitHub Actions runs the same tests on every push and pull request. See [tests/README.md](tests/README.md) for details.
 
 ## Production Build
 

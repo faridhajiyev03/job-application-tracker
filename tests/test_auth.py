@@ -1,16 +1,17 @@
 from datetime import datetime, timedelta, timezone
 
+import jwt
 import pytest
+from sqlalchemy import select
 
-pytestmark = pytest.mark.db
+from models.user import User
+from security import JWT_SECRET_KEY, verify_password
+
 PASSWORD = "test-password-123"
 
 
 @pytest.mark.parametrize("prefix", ["", "/api"])
-def test_register_login_and_profile(client, db_session, app_modules, prefix):
-    from sqlalchemy import select
-    from models.user import User
-
+def test_register_login_and_profile(client, db_session, prefix):
     credentials = {"email": "person@example.com", "password": PASSWORD}
     response = client.post(f"{prefix}/auth/register", json=credentials)
     assert response.status_code == 201
@@ -20,7 +21,7 @@ def test_register_login_and_profile(client, db_session, app_modules, prefix):
     assert user["email"] == credentials["email"]
     stored = db_session.scalar(select(User).where(User.email == user["email"]))
     assert stored.hashed_password != PASSWORD
-    assert app_modules[2].verify_password(PASSWORD, stored.hashed_password)
+    assert verify_password(PASSWORD, stored.hashed_password)
     login = client.post(f"{prefix}/auth/login", json=credentials)
     assert login.status_code == 200
     assert set(login.json()) == {"access_token", "token_type"}
@@ -59,13 +60,10 @@ def test_invalid_login(client, account, email, password):
 
 
 @pytest.mark.parametrize("kind", ["missing", "basic", "malformed", "expired", "signature", "missing_sub", "missing_exp", "invalid_sub", "nonexistent"])
-def test_invalid_bearer_authentication(client, account, app_modules, kind):
-    import jwt
-
+def test_invalid_bearer_authentication(client, account, kind):
     user, _ = account()
-    security = app_modules[2]
     payload = {"sub": str(user["id"]), "exp": datetime.now(timezone.utc) + timedelta(hours=1)}
-    key = security.JWT_SECRET_KEY
+    key = JWT_SECRET_KEY
     if kind == "expired":
         payload["exp"] = datetime.now(timezone.utc) - timedelta(hours=1)
     elif kind == "signature":
