@@ -19,7 +19,7 @@ def set_status(client, headers, application_id, status):
 
 def companies(response):
     assert response.status_code == 200, response.text
-    return [item["company"] for item in response.json()]
+    return [item["company"] for item in response.json()["items"]]
 
 
 # Create and update
@@ -152,6 +152,23 @@ def test_pagination_with_limit_and_offset(client, account):
     )
 
     assert companies(response) == ["C", "D"]
+    assert response.json()["total"] == 5
+    assert response.json()["limit"] == 2
+    assert response.json()["offset"] == 2
+
+
+def test_total_counts_only_matching_applications(client, account):
+    _, headers = account()
+    for company in ["Siemens", "Siemens Energy", "DATEV"]:
+        create_application(client, headers, company=company)
+
+    response = client.get(
+        "/applications/", params={"search": "siemens", "limit": 1}, headers=headers
+    )
+
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 1
+    assert response.json()["total"] == 2
 
 
 @pytest.mark.parametrize("params", [{"limit": 0}, {"limit": 101}, {"offset": -1}])

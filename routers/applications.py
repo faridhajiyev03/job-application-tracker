@@ -6,6 +6,7 @@ from models.application_status import ApplicationStatus
 from models.user import User
 from schemas.application import (
     ApplicationCreate,
+    ApplicationList,
     ApplicationResponse,
     ApplicationUpdate,
     ApplicationSummary
@@ -38,9 +39,7 @@ def get_application_summary(
     )
 
 
-
-
-@router.get("/", response_model=list[ApplicationResponse])
+@router.get("/", response_model=ApplicationList)
 def get_applications(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -49,7 +48,7 @@ def get_applications(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
-    return get_applications_service(
+    items, total = get_applications_service(
         db=db,
         user_id=current_user.id,
         status=status,
@@ -57,6 +56,13 @@ def get_applications(
         limit=limit,
         offset=offset,
     )
+
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/{application_id}", response_model=ApplicationResponse)

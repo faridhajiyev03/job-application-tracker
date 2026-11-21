@@ -216,6 +216,17 @@ Health check endpoint: `/health`
 | PATCH | `/applications/{id}` | Update an application |
 | DELETE | `/applications/{id}` | Delete an application |
 
+`GET /applications/` accepts `search`, `status`, `limit`, and `offset` and returns a page with the total number of matches:
+
+```json
+{
+  "items": [{"id": 1, "company": "Acme", "position": "Backend Developer", "vacancy_url": null, "notes": null, "status": "applied"}],
+  "total": 12,
+  "limit": 10,
+  "offset": 0
+}
+```
+
 The same endpoints are available under `/api` for the frontend.
 
 Protected endpoints require:
