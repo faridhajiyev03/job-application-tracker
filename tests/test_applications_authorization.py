@@ -49,7 +49,8 @@ def test_list_summary_and_owner_crud(client, account):
     for headers, application_id, status in [(owner, owned_id, "interview"), (other, alien.json()["id"], "applied")]:
         listing = client.get("/applications/", headers=headers)
         assert listing.status_code == 200
-        assert [item["id"] for item in listing.json()] == [application_id]
+        assert [item["id"] for item in listing.json()["items"]] == [application_id]
+        assert listing.json()["total"] == 1
         summary = client.get("/applications/summary", headers=headers)
         assert summary.status_code == 200
         expected = {"total": 1, "applied": 0, "interview": 0, "offer": 0, "rejected": 0}
@@ -59,5 +60,5 @@ def test_list_summary_and_owner_crud(client, account):
     assert deleted.status_code == 204
     assert deleted.content == b""
     assert client.get(f"/applications/{owned_id}", headers=owner).status_code == 404
-    assert client.get("/applications/", headers=owner).json() == []
+    assert client.get("/applications/", headers=owner).json()["items"] == []
     assert client.get(f"/applications/{alien.json()['id']}", headers=other).status_code == 200

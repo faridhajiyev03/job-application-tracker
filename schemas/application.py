@@ -46,3 +46,10 @@ class ApplicationSummary(BaseModel):
     interview: int
     offer: int
     rejected: int
+
+
+class ApplicationList(BaseModel):
+    items: list[ApplicationResponse]
+    total: int
+    limit: int
+    offset: int

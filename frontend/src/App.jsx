@@ -178,7 +178,7 @@ function Dashboard({ token, onLogout, notify }) {
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
-  const [hasNext, setHasNext] = useState(false);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -188,7 +188,7 @@ function Dashboard({ token, onLogout, notify }) {
       setLoadError("");
 
       const params = new URLSearchParams({
-        limit: String(pageSize + 1),
+        limit: String(pageSize),
         offset: String(query.offset),
       });
 
@@ -198,7 +198,7 @@ function Dashboard({ token, onLogout, notify }) {
       try {
         const options = { token, signal: controller.signal };
 
-        const [me, stats, applications] = await Promise.all([
+        const [me, stats, page] = await Promise.all([
           api("/auth/me", options),
           api("/applications/summary", options),
           api(`/applications/?${params}`, options),
@@ -206,7 +206,7 @@ function Dashboard({ token, onLogout, notify }) {
 
         if (controller.signal.aborted) return;
 
-        if (!applications.length && query.offset > 0) {
+        if (!page.items.length && query.offset > 0) {
           setQuery((current) => ({
             ...current,
             offset: Math.max(0, current.offset - pageSize),
@@ -216,8 +216,8 @@ function Dashboard({ token, onLogout, notify }) {
 
         setUser(me);
         setSummary(stats);
-        setItems(applications.slice(0, pageSize));
-        setHasNext(applications.length > pageSize);
+        setItems(page.items);
+        setTotal(page.total);
       } catch (error) {
         if (controller.signal.aborted) return;
 
@@ -547,10 +547,12 @@ function Dashboard({ token, onLogout, notify }) {
             >
               ← Previous
             </button>
-            <span>Page {query.offset / pageSize + 1}</span>
+            <span>
+              Page {query.offset / pageSize + 1} of {Math.max(1, Math.ceil(total / pageSize))}
+            </span>
             <button
               className="secondary"
-              disabled={loading || !!loadError || !hasNext}
+              disabled={loading || !!loadError || query.offset + pageSize >= total}
               onClick={() => setQuery((current) => ({
                 ...current,
                 offset: current.offset + pageSize,

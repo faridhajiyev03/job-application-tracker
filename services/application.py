@@ -58,6 +58,10 @@ def get_applications_service(
                 )
             )
 
+    total = db.scalar(
+        select(func.count()).select_from(statement.subquery())
+    )
+
     statement = (
         statement
         .order_by(Application.id)
@@ -65,9 +69,9 @@ def get_applications_service(
         .limit(limit)
     )
 
-    result = db.execute(statement)
+    items = db.execute(statement).scalars().all()
 
-    return result.scalars().all()
+    return items, total
 
 
 def get_application_by_id_service(
